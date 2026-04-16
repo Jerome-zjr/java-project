@@ -28,7 +28,7 @@ public class Item {
 
         switch (type) {
             case HEALTH_POTION    -> player.heal(40);
-            case STRENGTH_POTION  -> player.addAttack(5);
+            case STRENGTH_POTION  -> player.addAttack(type.attackBonus);
             case ARMOR_SHARD      -> player.addDefense(2);
         }
         player.addInventoryEntry(type.name);

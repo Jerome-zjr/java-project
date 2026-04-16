@@ -29,7 +29,7 @@ public class RaycastRenderer {
 
     // Wall colours (side-0 = east/west face, side-1 = north/south = darker)
     private static final Color WALL_BASE   = new Color(130, 95, 65);
-    private static final Color STAIRS_BASE = new Color(200, 185, 60);
+    private static final Color STAIRS_SPRITE = new Color(220, 190, 70);
     private static final Color FLOOR_COL   = new Color( 45, 45, 45);
     private static final Color CEIL_COL    = new Color( 25, 25, 75);
     // -----------------------------------------------------------------------
@@ -72,7 +72,7 @@ public class RaycastRenderer {
         }
 
         // 3. Sprites (enemies then items, far-to-near)
-        renderSprites(g, player, dirX, dirY, planeX, planeY, enemies, items);
+        renderSprites(g, map, player, dirX, dirY, planeX, planeY, enemies, items);
     }
 
     // =======================================================================
@@ -144,7 +144,7 @@ public class RaycastRenderer {
         int bottom = Math.min(h - 1, h / 2 + lineH / 2);
 
         // Choose base colour, darken NS faces and by distance
-        Color base = (hitTile == Tile.STAIRS_DOWN) ? STAIRS_BASE : WALL_BASE;
+        Color base = WALL_BASE;
         if (side == 1) base = base.darker();
         double brightness = Math.max(0.15, 1.0 - perpDist / SHADE_DISTANCE);
         Color wall = shade(base, brightness);
@@ -159,10 +159,10 @@ public class RaycastRenderer {
 
     private record Sprite(double deltaX, double deltaY, double dist, Color color, boolean small) {}
 
-    private void renderSprites(Graphics2D g, Player player,
-                                double dirX,  double dirY,
-                                double planeX, double planeY,
-                                List<Enemy> enemies, List<Item> items) {
+    private void renderSprites(Graphics2D g, DungeonMap map, Player player,
+                                 double dirX,  double dirY,
+                                 double planeX, double planeY,
+                                 List<Enemy> enemies, List<Item> items) {
 
         List<Sprite> sprites = new ArrayList<>();
 
@@ -182,6 +182,14 @@ public class RaycastRenderer {
                     Math.sqrt(dx * dx + dy * dy),
                     it.getType().color, true));
         }
+        int[] stairs = findStairs(map);
+        if (stairs != null) {
+            double sx = stairs[0] + 0.5 - player.getX();
+            double sy = stairs[1] + 0.5 - player.getY();
+            sprites.add(new Sprite(sx, sy,
+                    Math.sqrt(sx * sx + sy * sy),
+                    STAIRS_SPRITE, false));
+        }
 
         // Sort far → near (painter's order for z-buffer test per column)
         sprites.sort(Comparator.comparingDouble(s -> -s.dist()));
@@ -189,6 +197,15 @@ public class RaycastRenderer {
         for (Sprite sp : sprites) {
             drawSprite(g, dirX, dirY, planeX, planeY, sp);
         }
+    }
+
+    private int[] findStairs(DungeonMap map) {
+        for (int y = 0; y < map.getHeight(); y++) {
+            for (int x = 0; x < map.getWidth(); x++) {
+                if (map.getTile(x, y) == Tile.STAIRS_DOWN) return new int[] { x, y };
+            }
+        }
+        return null;
     }
 
     private void drawSprite(Graphics2D g,

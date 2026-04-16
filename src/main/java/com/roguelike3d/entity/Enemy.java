@@ -49,7 +49,7 @@ public class Enemy extends Entity {
         attackTimer += delta;
         if (dist <= ATTACK_RANGE && attackTimer >= 1.0 / ATTACK_RATE) {
             attackTimer = 0;
-            return Math.max(1, attack - player.getDefense());
+            return attack;
         }
         return 0;
     }

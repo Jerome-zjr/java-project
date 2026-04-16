@@ -59,6 +59,7 @@ public class Game extends JPanel implements Runnable {
 
     // cooldown for player swing (seconds)
     private double attackCooldown;
+    private boolean attackQueued;
     private static final double ATTACK_CD           = 0.45;
     /** How close the player must be to the tile centre to trigger a wall slide. */
     private static final double COLLISION_MARGIN    = 0.28;
@@ -69,6 +70,7 @@ public class Game extends JPanel implements Runnable {
 
     // ── Swing ──────────────────────────────────────────────────────────────
     private JFrame frame;
+    private final Object stateLock = new Object();
 
     // =======================================================================
 
@@ -140,10 +142,12 @@ public class Game extends JPanel implements Runnable {
     // =======================================================================
 
     private void update(double dt) {
-        switch (state) {
-            case MENU     -> updateMenu();
-            case PLAYING  -> updatePlaying(dt);
-            case GAME_OVER -> updateGameOver();
+        synchronized (stateLock) {
+            switch (state) {
+                case MENU     -> updateMenu();
+                case PLAYING  -> updatePlaying(dt);
+                case GAME_OVER -> updateGameOver();
+            }
         }
     }
 
@@ -207,21 +211,30 @@ public class Game extends JPanel implements Runnable {
     }
 
     private boolean canMoveX(double nx, double y, double m) {
-        return map.isWalkable((int)(nx - m), (int) y)
-            && map.isWalkable((int)(nx + m), (int) y);
+        return map.isWalkable((int)(nx - m), (int)(y - m))
+            && map.isWalkable((int)(nx + m), (int)(y - m))
+            && map.isWalkable((int)(nx - m), (int)(y + m))
+            && map.isWalkable((int)(nx + m), (int)(y + m));
     }
 
     private boolean canMoveY(double x, double ny, double m) {
-        return map.isWalkable((int) x, (int)(ny - m))
-            && map.isWalkable((int) x, (int)(ny + m));
+        return map.isWalkable((int)(x - m), (int)(ny - m))
+            && map.isWalkable((int)(x + m), (int)(ny - m))
+            && map.isWalkable((int)(x - m), (int)(ny + m))
+            && map.isWalkable((int)(x + m), (int)(ny + m));
     }
 
     // ── combat ──────────────────────────────────────────────────────────────
 
     private void handleAttack(double dt) {
-        if (attackCooldown > 0) { attackCooldown -= dt; return; }
-        if (!input.wasJustPressed(KeyEvent.VK_SPACE)) return;
+        if (input.wasJustPressed(KeyEvent.VK_SPACE)) attackQueued = true;
+        if (attackCooldown > 0) {
+            attackCooldown = Math.max(0, attackCooldown - dt);
+            return;
+        }
+        if (!attackQueued) return;
 
+        attackQueued = false;
         attackCooldown = ATTACK_CD;
         boolean hit = false;
         for (Enemy e : enemies) {
@@ -250,6 +263,7 @@ public class Game extends JPanel implements Runnable {
                 addMsg("Picked up " + it.getType().name + "!");
             }
         }
+        items.removeIf(Item::isPicked);
     }
 
     // ── stairs ──────────────────────────────────────────────────────────────
@@ -295,6 +309,7 @@ public class Game extends JPanel implements Runnable {
         enemies = new ArrayList<>();
         items = new ArrayList<>();
         messages.clear();
+        attackQueued = false;
         loadFloor();
         state = GameState.PLAYING;
         addMsg("Welcome to the dungeon! Find the golden stairs ▼");
@@ -333,10 +348,12 @@ public class Game extends JPanel implements Runnable {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        switch (state) {
-            case MENU     -> menu.render(g2);
-            case PLAYING  -> renderPlaying(g2);
-            case GAME_OVER -> renderGameOver(g2);
+        synchronized (stateLock) {
+            switch (state) {
+                case MENU     -> menu.render(g2);
+                case PLAYING  -> renderPlaying(g2);
+                case GAME_OVER -> renderGameOver(g2);
+            }
         }
     }
 

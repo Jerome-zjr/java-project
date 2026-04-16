@@ -65,6 +65,15 @@ public class MapGenerator {
             }
             rooms.add(room);
         }
+        if (rooms.isEmpty()) {
+            int rw = 6;
+            int rh = 6;
+            int rx = (MAP_W - rw) / 2;
+            int ry = (MAP_H - rh) / 2;
+            Room fallback = new Room(rx, ry, rw, rh);
+            carveRoom(map, fallback);
+            rooms.add(fallback);
+        }
 
         // Stairs in the last room
         Room startRoom = rooms.get(0);
