@@ -67,6 +67,15 @@ public class Game extends JPanel implements Runnable {
     private static final double ITEM_PICKUP_RANGE   = 0.80;
     /** Enemy type tier advances every N floors. */
     private static final int    FLOORS_PER_ENEMY_TIER = 3;
+    /** Distance (in tiles) from stairs centre within which F triggers descent. */
+    private static final double STAIRS_TRIGGER_RANGE = 1.5;
+    /** Minimum seconds between consecutive floor transitions. */
+    private static final double STAIRS_CD           = 0.5;
+
+    // stairs position on the current floor (world tile coordinates)
+    private int    stairsX;
+    private int    stairsY;
+    private double stairsCooldown;
 
     // ── Swing ──────────────────────────────────────────────────────────────
     private JFrame frame;
@@ -163,6 +172,7 @@ public class Game extends JPanel implements Runnable {
     private void updatePlaying(double dt) {
         if (!player.isAlive()) { state = GameState.GAME_OVER; return; }
 
+        if (stairsCooldown > 0) stairsCooldown = Math.max(0, stairsCooldown - dt);
         handleMovement(dt);
         handleAttack(dt);
         checkItemPickup();
@@ -269,12 +279,15 @@ public class Game extends JPanel implements Runnable {
     // ── stairs ──────────────────────────────────────────────────────────────
 
     private void checkStairs() {
-        if (map.getTile((int) player.getX(), (int) player.getY()) == Tile.STAIRS_DOWN) {
-            if (input.wasJustPressed(KeyEvent.VK_F)) {
-                player.nextFloor();
-                loadFloor();
-                addMsg("Floor " + player.getFloor() + " – deeper into the dark…");
-            }
+        if (stairsCooldown > 0) return;
+        double dx = player.getX() - (stairsX + 0.5);
+        double dy = player.getY() - (stairsY + 0.5);
+        if (Math.sqrt(dx * dx + dy * dy) < STAIRS_TRIGGER_RANGE
+                && input.isHeld(KeyEvent.VK_F)) {
+            stairsCooldown = STAIRS_CD;
+            player.nextFloor();
+            loadFloor();
+            addMsg("Floor " + player.getFloor() + " – deeper into the dark…");
         }
     }
 
@@ -313,6 +326,7 @@ public class Game extends JPanel implements Runnable {
         messages.clear();
         attackQueued = false;
         attackCooldown = 0;
+        stairsCooldown = 0;
         loadFloor();
         state = GameState.PLAYING;
         addMsg("Welcome to the dungeon! Find the golden stairs ▼");
@@ -324,6 +338,9 @@ public class Game extends JPanel implements Runnable {
 
         player.setX(result.playerStart()[0] + 0.5);
         player.setY(result.playerStart()[1] + 0.5);
+
+        stairsX = result.stairsPos()[0];
+        stairsY = result.stairsPos()[1];
 
         enemies.clear();
         EnemyType[] types = EnemyType.values();
@@ -362,7 +379,7 @@ public class Game extends JPanel implements Runnable {
 
     private void renderPlaying(Graphics2D g) {
         renderer.render(g, map, player, enemies, items);
-        hud.render(g, player, messages, map);
+        hud.render(g, player, messages, map, stairsX, stairsY);
     }
 
     private void renderGameOver(Graphics2D g) {

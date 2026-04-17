@@ -28,13 +28,14 @@ public class HUD {
     }
 
     public void render(Graphics2D g, Player player,
-                       List<String> messages, DungeonMap map) {
+                       List<String> messages, DungeonMap map,
+                       int stairsX, int stairsY) {
         drawHpBar(g, player);
         drawStats(g, player);
         drawCrosshair(g);
         drawMessages(g, messages);
         drawMinimap(g, map, player);
-        drawStairsHint(g, map, player);
+        drawStairsHint(g, player, stairsX, stairsY);
         drawControls(g);
     }
 
@@ -134,9 +135,10 @@ public class HUD {
                    py + MAP_TILE / 2 + (int)(Math.sin(player.getAngle()) * 6));
     }
 
-    private void drawStairsHint(Graphics2D g, DungeonMap map, Player player) {
-        Tile under = map.getTile((int) player.getX(), (int) player.getY());
-        if (under == Tile.STAIRS_DOWN) {
+    private void drawStairsHint(Graphics2D g, Player player, int stairsX, int stairsY) {
+        double dx = player.getX() - (stairsX + 0.5);
+        double dy = player.getY() - (stairsY + 0.5);
+        if (Math.sqrt(dx * dx + dy * dy) < 1.5) {
             g.setFont(new Font("Arial", Font.BOLD, 20));
             String hint = "▼  Press F  to descend";
             FontMetrics fm = g.getFontMetrics();
