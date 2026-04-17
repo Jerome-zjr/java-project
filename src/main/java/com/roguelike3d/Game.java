@@ -284,8 +284,10 @@ public class Game extends JPanel implements Runnable {
         for (Enemy e : enemies) {
             int dmg = e.update(dt, player, map);
             if (dmg > 0 && player.isAlive()) {
+                int hpBefore = player.getHp();
                 player.takeDamage(dmg);
-                addMsg(e.getType().name + " attacks you for " + dmg + " dmg!");
+                int actual = hpBefore - player.getHp();
+                addMsg(e.getType().name + " attacks you for " + actual + " dmg!");
             }
         }
     }
@@ -310,6 +312,7 @@ public class Game extends JPanel implements Runnable {
         items = new ArrayList<>();
         messages.clear();
         attackQueued = false;
+        attackCooldown = 0;
         loadFloor();
         state = GameState.PLAYING;
         addMsg("Welcome to the dungeon! Find the golden stairs ▼");
