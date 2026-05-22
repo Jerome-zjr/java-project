@@ -4,6 +4,7 @@ import com.roguelike3d.entity.Player;
 import com.roguelike3d.map.DungeonMap;
 import com.roguelike3d.map.Tile;
 import com.roguelike3d.theme.FloorTheme;
+import com.roguelike3d.util.MathUtils;
 
 import java.awt.*;
 import java.util.List;
@@ -159,9 +160,8 @@ public class HUD {
     }
 
     private void drawStairsHint(Graphics2D g, Player player, int stairsX, int stairsY) {
-        double dx = player.getX() - (stairsX + 0.5);
-        double dy = player.getY() - (stairsY + 0.5);
-        if (Math.sqrt(dx * dx + dy * dy) < 1.5) {
+        // Performance: use squared distance to avoid sqrt; 1.5² = 2.25
+        if (MathUtils.distSquared(player.getX(), player.getY(), stairsX + 0.5, stairsY + 0.5) < 2.25) {
             g.setFont(new Font("Arial", Font.BOLD, 20));
             String hint = "▼  Press F  to descend";
             FontMetrics fm = g.getFontMetrics();

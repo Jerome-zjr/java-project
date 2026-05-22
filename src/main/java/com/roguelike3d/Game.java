@@ -16,6 +16,7 @@ import com.roguelike3d.theme.FloorTheme;
 import com.roguelike3d.theme.FloorThemes;
 import com.roguelike3d.ui.HUD;
 import com.roguelike3d.ui.Menu;
+import com.roguelike3d.util.MathUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -209,21 +210,28 @@ public class Game extends JPanel implements Runnable {
         double nx    = player.getX();
         double ny    = player.getY();
 
+        // Pre-compute trigonometric values to avoid repeated calls
+        double cosAngle = Math.cos(angle);
+        double sinAngle = Math.sin(angle);
+        // cos(angle ± π/2) = ∓sin(angle), sin(angle ± π/2) = ±cos(angle)
+        double cosLeftAngle = sinAngle;   // cos(angle - π/2) = sin(angle)
+        double sinLeftAngle = -cosAngle;  // sin(angle - π/2) = -cos(angle)
+
         if (input.isHeld(KeyEvent.VK_W) || input.isHeld(KeyEvent.VK_UP)) {
-            nx += Math.cos(angle) * MOVE_SPEED * dt;
-            ny += Math.sin(angle) * MOVE_SPEED * dt;
+            nx += cosAngle * MOVE_SPEED * dt;
+            ny += sinAngle * MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_S) || input.isHeld(KeyEvent.VK_DOWN)) {
-            nx -= Math.cos(angle) * MOVE_SPEED * dt;
-            ny -= Math.sin(angle) * MOVE_SPEED * dt;
+            nx -= cosAngle * MOVE_SPEED * dt;
+            ny -= sinAngle * MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_Q)) {   // strafe left
-            nx += Math.cos(angle - Math.PI / 2) * MOVE_SPEED * dt;
-            ny += Math.sin(angle - Math.PI / 2) * MOVE_SPEED * dt;
+            nx += cosLeftAngle * MOVE_SPEED * dt;
+            ny += sinLeftAngle * MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_E)) {   // strafe right
-            nx += Math.cos(angle + Math.PI / 2) * MOVE_SPEED * dt;
-            ny += Math.sin(angle + Math.PI / 2) * MOVE_SPEED * dt;
+            nx -= cosLeftAngle * MOVE_SPEED * dt;
+            ny -= sinLeftAngle * MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_A) || input.isHeld(KeyEvent.VK_LEFT)) {
             player.setAngle(angle - ROT_SPEED * dt);
@@ -266,8 +274,8 @@ public class Game extends JPanel implements Runnable {
         boolean hit = false;
         for (Enemy e : enemies) {
             if (!e.isAlive()) continue;
-            double dist = dist(e.getX(), e.getY(), player.getX(), player.getY());
-            if (dist < 1.6) {
+            // Performance: use squared distance to avoid sqrt; 1.6² = 2.56
+            if (MathUtils.distSquared(e.getX(), e.getY(), player.getX(), player.getY()) < 2.56) {
                 int dmg = CombatSystem.attack(player, e);
                 addMsg("You hit " + e.getType().name + " for " + dmg + " dmg!");
                 hit = true;
@@ -285,7 +293,9 @@ public class Game extends JPanel implements Runnable {
     private void checkItemPickup() {
         for (Item it : items) {
             if (it.isPicked()) continue;
-            if (dist(it.getX(), it.getY(), player.getX(), player.getY()) < ITEM_PICKUP_RANGE) {
+            // Performance: use squared distance to avoid sqrt overhead
+            if (MathUtils.distSquared(it.getX(), it.getY(), player.getX(), player.getY()) 
+                    < ITEM_PICKUP_RANGE * ITEM_PICKUP_RANGE) {
                 it.collect(player);
                 addMsg("Picked up " + it.getType().name + "!");
             }
@@ -297,9 +307,9 @@ public class Game extends JPanel implements Runnable {
 
     private void checkStairs() {
         if (stairsCooldown > 0) return;
-        double dx = player.getX() - (stairsX + 0.5);
-        double dy = player.getY() - (stairsY + 0.5);
-        if (Math.sqrt(dx * dx + dy * dy) < STAIRS_TRIGGER_RANGE
+        // Performance: use squared distance to avoid sqrt overhead
+        if (MathUtils.distSquared(player.getX(), player.getY(), stairsX + 0.5, stairsY + 0.5) 
+                < STAIRS_TRIGGER_RANGE * STAIRS_TRIGGER_RANGE
                 && input.wasJustPressed(KeyEvent.VK_F)) {
             stairsCooldown = STAIRS_CD;
             int nextFloor = player.getFloor() + 1;
