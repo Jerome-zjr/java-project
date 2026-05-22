@@ -66,19 +66,6 @@ public class Game extends JPanel implements Runnable {
     // cooldown for player swing (seconds)
     private double attackCooldown;
     private boolean attackQueued;
-    private static final double ATTACK_CD           = 0.45;
-    /** How close the player must be to the tile centre to trigger a wall slide. */
-    private static final double COLLISION_MARGIN    = 0.28;
-    /** Distance (in tiles) within which an item is auto-collected. */
-    private static final double ITEM_PICKUP_RANGE   = 0.80;
-    /** Enemy type tier advances every N floors. */
-    private static final int    FLOORS_PER_ENEMY_TIER = 3;
-    /** Total number of floors required to clear the game. */
-    private static final int    MAX_FLOOR            = FloorThemes.MAX_FLOOR;
-    /** Distance (in tiles) from stairs centre within which F triggers descent. */
-    private static final double STAIRS_TRIGGER_RANGE = 1.5;
-    /** Minimum seconds between consecutive floor transitions. */
-    private static final double STAIRS_CD           = 0.5;
 
     // stairs position on the current floor (world tile coordinates)
     private int    stairsX;
@@ -202,9 +189,7 @@ public class Game extends JPanel implements Runnable {
     // ── movement ────────────────────────────────────────────────────────────
 
     private void handleMovement(double dt) {
-        final double MOVE_SPEED = 3.5;
-        final double ROT_SPEED  = 2.2;
-        final double MARGIN     = COLLISION_MARGIN;
+        final double MARGIN     = GameConstants.COLLISION_MARGIN;
 
         double angle = player.getAngle();
         double nx    = player.getX();
@@ -218,26 +203,26 @@ public class Game extends JPanel implements Runnable {
         double sinLeftAngle = -cosAngle;  // sin(angle - π/2) = -cos(angle)
 
         if (input.isHeld(KeyEvent.VK_W) || input.isHeld(KeyEvent.VK_UP)) {
-            nx += cosAngle * MOVE_SPEED * dt;
-            ny += sinAngle * MOVE_SPEED * dt;
+            nx += cosAngle * GameConstants.MOVE_SPEED * dt;
+            ny += sinAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_S) || input.isHeld(KeyEvent.VK_DOWN)) {
-            nx -= cosAngle * MOVE_SPEED * dt;
-            ny -= sinAngle * MOVE_SPEED * dt;
+            nx -= cosAngle * GameConstants.MOVE_SPEED * dt;
+            ny -= sinAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_Q)) {   // strafe left
-            nx += cosLeftAngle * MOVE_SPEED * dt;
-            ny += sinLeftAngle * MOVE_SPEED * dt;
+            nx += cosLeftAngle * GameConstants.MOVE_SPEED * dt;
+            ny += sinLeftAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_E)) {   // strafe right
-            nx -= cosLeftAngle * MOVE_SPEED * dt;
-            ny -= sinLeftAngle * MOVE_SPEED * dt;
+            nx -= cosLeftAngle * GameConstants.MOVE_SPEED * dt;
+            ny -= sinLeftAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_A) || input.isHeld(KeyEvent.VK_LEFT)) {
-            player.setAngle(angle - ROT_SPEED * dt);
+            player.setAngle(angle - GameConstants.ROT_SPEED * dt);
         }
         if (input.isHeld(KeyEvent.VK_D) || input.isHeld(KeyEvent.VK_RIGHT)) {
-            player.setAngle(angle + ROT_SPEED * dt);
+            player.setAngle(angle + GameConstants.ROT_SPEED * dt);
         }
 
         // Slide along walls: test each axis independently
@@ -270,12 +255,13 @@ public class Game extends JPanel implements Runnable {
         if (!attackQueued) return;
 
         attackQueued = false;
-        attackCooldown = ATTACK_CD;
+        attackCooldown = GameConstants.ATTACK_COOLDOWN;
         boolean hit = false;
         for (Enemy e : enemies) {
             if (!e.isAlive()) continue;
             // Performance: use squared distance to avoid sqrt; 1.6² = 2.56
-            if (MathUtils.distSquared(e.getX(), e.getY(), player.getX(), player.getY()) < 2.56) {
+            if (MathUtils.distSquared(e.getX(), e.getY(), player.getX(), player.getY()) 
+                    < GameConstants.ATTACK_RANGE_SQ) {
                 int dmg = CombatSystem.attack(player, e);
                 addMsg("You hit " + e.getType().name + " for " + dmg + " dmg!");
                 hit = true;
@@ -295,7 +281,7 @@ public class Game extends JPanel implements Runnable {
             if (it.isPicked()) continue;
             // Performance: use squared distance to avoid sqrt overhead
             if (MathUtils.distSquared(it.getX(), it.getY(), player.getX(), player.getY()) 
-                    < ITEM_PICKUP_RANGE * ITEM_PICKUP_RANGE) {
+                    < GameConstants.ITEM_PICKUP_RANGE_SQ) {
                 it.collect(player);
                 addMsg("Picked up " + it.getType().name + "!");
             }
@@ -309,12 +295,12 @@ public class Game extends JPanel implements Runnable {
         if (stairsCooldown > 0) return;
         // Performance: use squared distance to avoid sqrt overhead
         if (MathUtils.distSquared(player.getX(), player.getY(), stairsX + 0.5, stairsY + 0.5) 
-                < STAIRS_TRIGGER_RANGE * STAIRS_TRIGGER_RANGE
+                < GameConstants.STAIRS_TRIGGER_RANGE_SQ
                 && input.wasJustPressed(KeyEvent.VK_F)) {
-            stairsCooldown = STAIRS_CD;
+            stairsCooldown = GameConstants.STAIRS_COOLDOWN;
             int nextFloor = player.getFloor() + 1;
             player.nextFloor();
-            if (nextFloor >= MAX_FLOOR) {
+            if (nextFloor >= GameConstants.MAX_FLOOR) {
                 theme = FloorThemes.forFloor(player.getFloor());
                 particles.setTheme(theme);
                 state = GameState.VICTORY;
@@ -363,7 +349,7 @@ public class Game extends JPanel implements Runnable {
         stairsCooldown = 0;
         loadFloor();
         state = GameState.PLAYING;
-        addMsg("Welcome to the dungeon! Reach floor " + MAX_FLOOR + " to escape.");
+        addMsg("Welcome to the dungeon! Reach floor " + GameConstants.MAX_FLOOR + " to escape.");
     }
 
     private void loadFloor() {
@@ -383,7 +369,7 @@ public class Game extends JPanel implements Runnable {
         EnemyType[] types = EnemyType.values();
         for (int[] sp : result.enemySpawns()) {
             // Scale enemy type probabilities by floor
-            EnemyType type = types[Math.min(rng.nextInt(types.length) + (player.getFloor() - 1) / FLOORS_PER_ENEMY_TIER,
+            EnemyType type = types[Math.min(rng.nextInt(types.length) + (player.getFloor() - 1) / GameConstants.FLOORS_PER_ENEMY_TIER,
                                             types.length - 1)];
             enemies.add(new Enemy(sp[0] + 0.5, sp[1] + 0.5, type));
         }
@@ -451,7 +437,7 @@ public class Game extends JPanel implements Runnable {
     }
 
     private void renderVictory(Graphics2D g) {
-        FloorTheme activeTheme = theme != null ? theme : FloorThemes.forFloor(MAX_FLOOR);
+        FloorTheme activeTheme = theme != null ? theme : FloorThemes.forFloor(GameConstants.MAX_FLOOR);
         GradientPaint bg = new GradientPaint(0, 0, activeTheme.ceiling(),
                                              0, SH, activeTheme.floor());
         g.setPaint(bg);
