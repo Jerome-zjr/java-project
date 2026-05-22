@@ -6,5 +6,6 @@ package com.roguelike3d;
 public enum GameState {
     MENU,
     PLAYING,
-    GAME_OVER
+    GAME_OVER,
+    VICTORY
 }

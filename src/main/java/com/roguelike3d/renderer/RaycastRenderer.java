@@ -5,6 +5,7 @@ import com.roguelike3d.entity.Player;
 import com.roguelike3d.item.Item;
 import com.roguelike3d.map.DungeonMap;
 import com.roguelike3d.map.Tile;
+import com.roguelike3d.theme.FloorTheme;
 
 import java.awt.*;
 import java.util.*;
@@ -26,12 +27,7 @@ public class RaycastRenderer {
     private static final double FOV            = Math.PI / 3.0;  // 60°
     private static final double MAX_DEPTH      = 24.0;           // tiles
     private static final double SHADE_DISTANCE = 12.0;           // full dark at this dist
-
-    // Wall colours (side-0 = east/west face, side-1 = north/south = darker)
-    private static final Color WALL_BASE   = new Color(130, 95, 65);
-    private static final Color STAIRS_SPRITE = new Color(220, 190, 70);
-    private static final Color FLOOR_COL   = new Color( 45, 45, 45);
-    private static final Color CEIL_COL    = new Color( 25, 25, 75);
+    private static final double WALL_PATTERN_STRENGTH = 0.08;
     // -----------------------------------------------------------------------
 
     private final int      w;
@@ -50,12 +46,15 @@ public class RaycastRenderer {
 
     public void render(Graphics2D g,
                        DungeonMap map, Player player,
-                       List<Enemy> enemies, List<Item> items) {
+                       List<Enemy> enemies, List<Item> items,
+                       FloorTheme theme) {
 
         // 1. Background (ceiling + floor)
-        g.setColor(CEIL_COL);
+        Color ceilCol = theme != null ? theme.ceiling() : new Color(25, 25, 75);
+        Color floorCol = theme != null ? theme.floor() : new Color(45, 45, 45);
+        g.setColor(ceilCol);
         g.fillRect(0, 0, w, h / 2);
-        g.setColor(FLOOR_COL);
+        g.setColor(floorCol);
         g.fillRect(0, h / 2, w, h / 2);
 
         // Pre-compute direction and camera-plane vectors
@@ -68,11 +67,11 @@ public class RaycastRenderer {
 
         // 2. Walls – one DDA ray per screen column
         for (int col = 0; col < w; col++) {
-            castWallRay(g, map, player, dirX, dirY, planeX, planeY, col);
+            castWallRay(g, map, player, dirX, dirY, planeX, planeY, col, theme);
         }
 
         // 3. Sprites (enemies then items, far-to-near)
-        renderSprites(g, map, player, dirX, dirY, planeX, planeY, enemies, items);
+        renderSprites(g, map, player, dirX, dirY, planeX, planeY, enemies, items, theme);
     }
 
     // =======================================================================
@@ -82,7 +81,7 @@ public class RaycastRenderer {
     private void castWallRay(Graphics2D g, DungeonMap map, Player player,
                               double dirX, double dirY,
                               double planeX, double planeY,
-                              int col) {
+                              int col, FloorTheme theme) {
         double camX    = 2.0 * col / w - 1.0;   // −1 … +1
         double rayDirX = dirX + planeX * camX;
         double rayDirY = dirY + planeY * camX;
@@ -144,9 +143,10 @@ public class RaycastRenderer {
         int bottom = Math.min(h - 1, h / 2 + lineH / 2);
 
         // Choose base colour, darken NS faces and by distance
-        Color base = WALL_BASE;
+        Color base = theme != null ? theme.wallBase() : new Color(130, 95, 65);
         if (side == 1) base = base.darker();
-        double brightness = Math.max(0.15, 1.0 - perpDist / SHADE_DISTANCE);
+        double pattern = ((mapX + mapY) & 1) == 0 ? 1.0 : 1.0 - WALL_PATTERN_STRENGTH;
+        double brightness = Math.max(0.15, 1.0 - perpDist / SHADE_DISTANCE) * pattern;
         Color wall = shade(base, brightness);
 
         g.setColor(wall);
@@ -162,7 +162,8 @@ public class RaycastRenderer {
     private void renderSprites(Graphics2D g, DungeonMap map, Player player,
                                  double dirX,  double dirY,
                                  double planeX, double planeY,
-                                 List<Enemy> enemies, List<Item> items) {
+                                 List<Enemy> enemies, List<Item> items,
+                                 FloorTheme theme) {
 
         List<Sprite> sprites = new ArrayList<>();
 
@@ -172,7 +173,8 @@ public class RaycastRenderer {
             double dy = e.getY() - player.getY();
             sprites.add(new Sprite(dx, dy,
                     Math.sqrt(dx * dx + dy * dy),
-                    e.getType().color, false));
+                    applyTint(e.getType().color, theme != null ? theme.enemyTint() : e.getType().color, 0.35),
+                    false));
         }
         for (Item it : items) {
             if (it.isPicked()) continue;
@@ -180,7 +182,8 @@ public class RaycastRenderer {
             double dy = it.getY() - player.getY();
             sprites.add(new Sprite(dx, dy,
                     Math.sqrt(dx * dx + dy * dy),
-                    it.getType().color, true));
+                    applyTint(it.getType().color, theme != null ? theme.itemTint() : it.getType().color, 0.35),
+                    true));
         }
         int[] stairs = findStairs(map);
         if (stairs != null) {
@@ -188,7 +191,8 @@ public class RaycastRenderer {
             double sy = stairs[1] + 0.5 - player.getY();
             sprites.add(new Sprite(sx, sy,
                     Math.sqrt(sx * sx + sy * sy),
-                    STAIRS_SPRITE, false));
+                    theme != null ? theme.stairs() : new Color(220, 190, 70),
+                    false));
         }
 
         // Sort far → near (painter's order for z-buffer test per column)
@@ -254,5 +258,13 @@ public class RaycastRenderer {
                 (int) Math.min(255, c.getRed()   * brightness),
                 (int) Math.min(255, c.getGreen() * brightness),
                 (int) Math.min(255, c.getBlue()  * brightness));
+    }
+
+    private static Color applyTint(Color base, Color tint, double amount) {
+        double inv = 1.0 - amount;
+        return new Color(
+                (int) Math.min(255, base.getRed() * inv + tint.getRed() * amount),
+                (int) Math.min(255, base.getGreen() * inv + tint.getGreen() * amount),
+                (int) Math.min(255, base.getBlue() * inv + tint.getBlue() * amount));
     }
 }

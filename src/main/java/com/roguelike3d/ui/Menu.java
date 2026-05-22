@@ -46,6 +46,7 @@ public class Menu {
         int oy = sh / 2 + 20;
         drawCentered(g, fm, "Press  ENTER  to Start", new Color(220, 220, 220), oy);
         drawCentered(g, fm, "Press  ESC  to Quit",    new Color(180, 180, 180), oy + 50);
+        drawCentered(g, fm, "Goal: Reach Floor 18",  new Color(200, 200, 160), oy + 95);
 
         // Controls
         g.setFont(new Font("Arial", Font.PLAIN, 14));

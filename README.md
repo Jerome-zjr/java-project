@@ -16,6 +16,7 @@ A pure-Java, first-person 3D roguelike dungeon crawler built with **Java 17** an
   - Separate Z-buffer for sprite occlusion
 - **Procedural dungeon generation** — random room placement with L-shaped corridors
 - **Roguelike mechanics** — permadeath, floor progression, score tracking
+- **18 themed floors** — unique color palettes and particle effects per floor
 - **Three enemy types** — Skeleton, Zombie, Demon (each with unique stats and speed)
 - **Item pickups** — Health Potion, Strength Potion, Armor Shard
 - **HUD** — HP bar, floor/score display, combat message log, minimap with player direction, crosshair
