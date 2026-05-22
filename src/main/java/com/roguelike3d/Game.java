@@ -300,10 +300,11 @@ public class Game extends JPanel implements Runnable {
         double dx = player.getX() - (stairsX + 0.5);
         double dy = player.getY() - (stairsY + 0.5);
         if (Math.sqrt(dx * dx + dy * dy) < STAIRS_TRIGGER_RANGE
-                && input.isHeld(KeyEvent.VK_F)) {
+                && input.wasJustPressed(KeyEvent.VK_F)) {
             stairsCooldown = STAIRS_CD;
+            int nextFloor = player.getFloor() + 1;
             player.nextFloor();
-            if (player.getFloor() == MAX_FLOOR) {
+            if (nextFloor >= MAX_FLOOR) {
                 theme = FloorThemes.forFloor(player.getFloor());
                 particles.setTheme(theme);
                 state = GameState.VICTORY;
