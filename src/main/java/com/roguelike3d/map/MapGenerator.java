@@ -57,7 +57,15 @@ public class MapGenerator {
             int ry = 1 + rng.nextInt(MAP_H - rh - 2);
             Room room = new Room(rx, ry, rw, rh);
 
-            if (rooms.stream().anyMatch(room::overlaps)) continue;
+            // Performance: use traditional loop instead of stream for early exit
+            boolean overlaps = false;
+            for (Room r : rooms) {
+                if (room.overlaps(r)) {
+                    overlaps = true;
+                    break;
+                }
+            }
+            if (overlaps) continue;
 
             carveRoom(map, room);
             if (!rooms.isEmpty()) {
@@ -97,8 +105,11 @@ public class MapGenerator {
         List<int[]> itemSpawns = new ArrayList<>();
         for (Room r : rooms) {
             if (rng.nextFloat() < ITEM_SPAWN_PROBABILITY) {
-                int ix = r.x + 1 + rng.nextInt(Math.max(1, r.w - 2));
-                int iy = r.y + 1 + rng.nextInt(Math.max(1, r.h - 2));
+                // Ensure room is large enough to spawn items safely
+                int maxX = Math.max(r.x + 1, r.x + r.w - 2);
+                int maxY = Math.max(r.y + 1, r.y + r.h - 2);
+                int ix = r.x + 1 + rng.nextInt(Math.max(1, maxX - r.x - 1));
+                int iy = r.y + 1 + rng.nextInt(Math.max(1, maxY - r.y - 1));
                 itemSpawns.add(new int[]{ ix, iy });
             }
         }

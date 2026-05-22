@@ -6,9 +6,11 @@ import com.roguelike3d.item.Item;
 import com.roguelike3d.map.DungeonMap;
 import com.roguelike3d.map.Tile;
 import com.roguelike3d.theme.FloorTheme;
+import com.roguelike3d.util.MathUtils;
 
 import java.awt.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -47,6 +49,7 @@ public class RaycastRenderer {
     public void render(Graphics2D g,
                        DungeonMap map, Player player,
                        List<Enemy> enemies, List<Item> items,
+                       int[] stairsPos,
                        FloorTheme theme) {
 
         // 1. Background (ceiling + floor)
@@ -71,7 +74,7 @@ public class RaycastRenderer {
         }
 
         // 3. Sprites (enemies then items, far-to-near)
-        renderSprites(g, map, player, dirX, dirY, planeX, planeY, enemies, items, theme);
+        renderSprites(g, map, player, dirX, dirY, planeX, planeY, enemies, items, stairsPos, theme);
     }
 
     // =======================================================================
@@ -163,6 +166,7 @@ public class RaycastRenderer {
                                  double dirX,  double dirY,
                                  double planeX, double planeY,
                                  List<Enemy> enemies, List<Item> items,
+                                 int[] stairsPos,
                                  FloorTheme theme) {
 
         List<Sprite> sprites = new ArrayList<>();
@@ -171,8 +175,9 @@ public class RaycastRenderer {
             if (!e.isAlive()) continue;
             double dx = e.getX() - player.getX();
             double dy = e.getY() - player.getY();
+            // Use squared distance for sorting (no need for sqrt until rendering)
             sprites.add(new Sprite(dx, dy,
-                    Math.sqrt(dx * dx + dy * dy),
+                    MathUtils.distance(dx, dy),
                     applyTint(e.getType().color, theme != null ? theme.enemyTint() : e.getType().color, 0.35),
                     false));
         }
@@ -181,16 +186,17 @@ public class RaycastRenderer {
             double dx = it.getX() - player.getX();
             double dy = it.getY() - player.getY();
             sprites.add(new Sprite(dx, dy,
-                    Math.sqrt(dx * dx + dy * dy),
+                    MathUtils.distance(dx, dy),
                     applyTint(it.getType().color, theme != null ? theme.itemTint() : it.getType().color, 0.35),
                     true));
         }
-        int[] stairs = findStairs(map);
-        if (stairs != null) {
-            double sx = stairs[0] + 0.5 - player.getX();
-            double sy = stairs[1] + 0.5 - player.getY();
+        
+        // Use cached stairs position instead of searching every frame
+        if (stairsPos != null) {
+            double sx = stairsPos[0] + 0.5 - player.getX();
+            double sy = stairsPos[1] + 0.5 - player.getY();
             sprites.add(new Sprite(sx, sy,
-                    Math.sqrt(sx * sx + sy * sy),
+                    MathUtils.distance(sx, sy),
                     theme != null ? theme.stairs() : new Color(220, 190, 70),
                     false));
         }
@@ -201,15 +207,6 @@ public class RaycastRenderer {
         for (Sprite sp : sprites) {
             drawSprite(g, dirX, dirY, planeX, planeY, sp);
         }
-    }
-
-    private int[] findStairs(DungeonMap map) {
-        for (int y = 0; y < map.getHeight(); y++) {
-            for (int x = 0; x < map.getWidth(); x++) {
-                if (map.getTile(x, y) == Tile.STAIRS_DOWN) return new int[] { x, y };
-            }
-        }
-        return null;
     }
 
     private void drawSprite(Graphics2D g,

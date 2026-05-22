@@ -406,7 +406,7 @@ public class Game extends JPanel implements Runnable {
     }
 
     private void renderPlaying(Graphics2D g) {
-        renderer.render(g, map, player, enemies, items, theme);
+        renderer.render(g, map, player, enemies, items, new int[] { stairsX, stairsY }, theme);
         particles.render(g);
         hud.render(g, player, messages, map, stairsX, stairsY, theme);
     }
