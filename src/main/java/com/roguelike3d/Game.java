@@ -303,7 +303,7 @@ public class Game extends JPanel implements Runnable {
                 && input.isHeld(KeyEvent.VK_F)) {
             stairsCooldown = STAIRS_CD;
             player.nextFloor();
-            if (player.getFloor() >= MAX_FLOOR) {
+            if (player.getFloor() == MAX_FLOOR) {
                 theme = FloorThemes.forFloor(player.getFloor());
                 particles.setTheme(theme);
                 state = GameState.VICTORY;

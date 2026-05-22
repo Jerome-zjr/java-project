@@ -83,7 +83,8 @@ public class ParticleSystem {
     private void resetParticle(Particle p, FloorTheme theme, boolean randomY) {
         int minSize = theme.particleMinSize();
         int maxSize = Math.max(minSize, theme.particleMaxSize());
-        p.size = minSize + rng.nextInt(maxSize - minSize + 1);
+        int range = maxSize - minSize;
+        p.size = range > 0 ? minSize + rng.nextInt(range + 1) : minSize;
         p.alpha = 0.35f + rng.nextFloat() * 0.45f;
         p.x = rng.nextDouble() * width;
         p.y = randomY ? rng.nextDouble() * height : -p.size - rng.nextDouble() * height * 0.2;
