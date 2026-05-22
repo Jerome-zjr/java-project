@@ -44,8 +44,9 @@ public final class GameConstants {
     // ── Difficulty ────────────────────────────────────────────────────────
     /** Enemy type tier advances every N floors */
     public static final int FLOORS_PER_ENEMY_TIER = 3;
-    /** Total number of floors required to clear the game */
-    public static final int MAX_FLOOR = 18; // Should match FloorThemes.MAX_FLOOR
+    /** Total number of floors required to clear the game.
+     *  NOTE: Must be kept in sync with FloorThemes.MAX_FLOOR to ensure theme availability. */
+    public static final int MAX_FLOOR = 18;
 
     // ── Rendering ─────────────────────────────────────────────────────────
     /** Minimap tile size (pixels per game tile) */

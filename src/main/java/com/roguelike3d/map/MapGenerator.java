@@ -105,12 +105,12 @@ public class MapGenerator {
         List<int[]> itemSpawns = new ArrayList<>();
         for (Room r : rooms) {
             if (rng.nextFloat() < ITEM_SPAWN_PROBABILITY) {
-                // Ensure room is large enough to spawn items safely
-                int maxX = Math.max(r.x + 1, r.x + r.w - 2);
-                int maxY = Math.max(r.y + 1, r.y + r.h - 2);
-                int ix = r.x + 1 + rng.nextInt(Math.max(1, maxX - r.x - 1));
-                int iy = r.y + 1 + rng.nextInt(Math.max(1, maxY - r.y - 1));
-                itemSpawns.add(new int[]{ ix, iy });
+                // Ensure room is large enough to spawn items safely (minimum 3x3)
+                if (r.w >= 3 && r.h >= 3) {
+                    int ix = r.x + 1 + rng.nextInt(r.w - 2);
+                    int iy = r.y + 1 + rng.nextInt(r.h - 2);
+                    itemSpawns.add(new int[]{ ix, iy });
+                }
             }
         }
 
