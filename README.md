@@ -4,6 +4,8 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](#license)
 [![No Dependencies](https://img.shields.io/badge/Dependencies-None-brightgreen.svg)]()
 
+**[English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)**
+
 A pure-Java, first-person 3D roguelike dungeon crawler built with **Java 17** and **Swing/AWT** — no external dependencies. Features raycasting 3D rendering, procedural dungeon generation, and classic roguelike mechanics in a standalone, cross-platform experience.
 
 ## Table of Contents
