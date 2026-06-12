@@ -15,14 +15,14 @@ public final class CombatSystem {
 
     /**
      * Attacker hits defender.
+     * Defense reduction is applied inside {@link Entity#takeDamage(int)}.
      * @return the actual HP removed from the defender
      */
     public static int attack(Entity attacker, Entity defender) {
-        int base   = Math.max(1, attacker.getAttack() - defender.getDefense());
         double var = 0.80 + RNG.nextDouble() * 0.40;   // [0.80 – 1.20]
-        int damage = (int) Math.round(base * var);
-        damage = Math.max(1, damage);
+        int damage = (int) Math.round(Math.max(1, attacker.getAttack()) * var);
+        int hpBefore = defender.getHp();
         defender.takeDamage(damage);
-        return damage;
+        return hpBefore - defender.getHp();   // actual HP removed after defense
     }
 }

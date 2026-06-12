@@ -3,6 +3,8 @@ package com.roguelike3d.ui;
 import com.roguelike3d.entity.Player;
 import com.roguelike3d.map.DungeonMap;
 import com.roguelike3d.map.Tile;
+import com.roguelike3d.theme.FloorTheme;
+import com.roguelike3d.util.MathUtils;
 
 import java.awt.*;
 import java.util.List;
@@ -28,13 +30,15 @@ public class HUD {
     }
 
     public void render(Graphics2D g, Player player,
-                       List<String> messages, DungeonMap map) {
+                       List<String> messages, DungeonMap map,
+                       int stairsX, int stairsY,
+                       FloorTheme theme) {
         drawHpBar(g, player);
-        drawStats(g, player);
+        drawStats(g, player, theme);
         drawCrosshair(g);
         drawMessages(g, messages);
-        drawMinimap(g, map, player);
-        drawStairsHint(g, map, player);
+        drawMinimap(g, map, player, theme);
+        drawStairsHint(g, player, stairsX, stairsY);
         drawControls(g);
     }
 
@@ -62,13 +66,30 @@ public class HUD {
                 x + BAR_W + 6, y + 13);
     }
 
-    private void drawStats(Graphics2D g, Player player) {
+    private void drawStats(Graphics2D g, Player player, FloorTheme theme) {
         g.setFont(new Font("Arial", Font.BOLD, 15));
+        FontMetrics fm = g.getFontMetrics();
+        String floorText = "Floor : " + player.getFloor();
+        String scoreText = "Score : " + player.getScore();
+        String themeText = theme != null ? "Theme : " + theme.name() : null;
+
+        int width = Math.max(fm.stringWidth(floorText), fm.stringWidth(scoreText));
+        if (themeText != null) {
+            width = Math.max(width, fm.stringWidth(themeText));
+        }
+        width += 16;
+        int height = themeText != null ? 70 : 52;
+
         g.setColor(BG);
-        g.fillRoundRect(sw - 148, 6, 140, 52, 6, 6);
+        g.fillRoundRect(sw - width - 8, 6, width, height, 6, 6);
         g.setColor(Color.YELLOW);
-        g.drawString("Floor : " + player.getFloor(), sw - 140, 24);
-        g.drawString("Score : " + player.getScore(), sw - 140, 46);
+        int baseX = sw - width;
+        g.drawString(floorText, baseX, 24);
+        g.drawString(scoreText, baseX, 46);
+        if (themeText != null) {
+            g.setColor(new Color(200, 200, 220));
+            g.drawString(themeText, baseX, 66);
+        }
     }
 
     private void drawCrosshair(Graphics2D g) {
@@ -95,7 +116,7 @@ public class HUD {
         }
     }
 
-    private void drawMinimap(Graphics2D g, DungeonMap map, Player player) {
+    private void drawMinimap(Graphics2D g, DungeonMap map, Player player, FloorTheme theme) {
         int mapW = map.getWidth();
         int mapH = map.getHeight();
         int ox   = sw - mapW * MAP_TILE - 10;
@@ -105,14 +126,18 @@ public class HUD {
         g.setColor(new Color(0, 0, 0, 120));
         g.fillRect(ox - 1, oy - 1, mapW * MAP_TILE + 2, mapH * MAP_TILE + 2);
 
+        Color floorColor = theme != null ? theme.floor() : new Color(80, 80, 80);
+        Color wallColor = theme != null ? theme.wallBase().darker() : new Color(20, 20, 20);
+        Color stairsColor = theme != null ? theme.stairs() : new Color(200, 180, 50);
+
         for (int x = 0; x < mapW; x++) {
             for (int y = 0; y < mapH; y++) {
                 Tile t = map.getTile(x, y);
                 Color tc;
                 switch (t) {
-                    case FLOOR        -> tc = new Color( 80,  80,  80, 180);
-                    case STAIRS_DOWN  -> tc = new Color(200, 180,  50, 200);
-                    default           -> tc = new Color( 20,  20,  20, 180);
+                    case FLOOR        -> tc = withAlpha(floorColor, 180);
+                    case STAIRS_DOWN  -> tc = withAlpha(stairsColor, 200);
+                    default           -> tc = withAlpha(wallColor, 180);
                 }
                 g.setColor(tc);
                 g.fillRect(ox + x * MAP_TILE, oy + y * MAP_TILE,
@@ -134,9 +159,9 @@ public class HUD {
                    py + MAP_TILE / 2 + (int)(Math.sin(player.getAngle()) * 6));
     }
 
-    private void drawStairsHint(Graphics2D g, DungeonMap map, Player player) {
-        Tile under = map.getTile((int) player.getX(), (int) player.getY());
-        if (under == Tile.STAIRS_DOWN) {
+    private void drawStairsHint(Graphics2D g, Player player, int stairsX, int stairsY) {
+        // Performance: use squared distance to avoid sqrt; 1.5² = 2.25
+        if (MathUtils.distSquared(player.getX(), player.getY(), stairsX + 0.5, stairsY + 0.5) < 2.25) {
             g.setFont(new Font("Arial", Font.BOLD, 20));
             String hint = "▼  Press F  to descend";
             FontMetrics fm = g.getFontMetrics();
@@ -153,5 +178,9 @@ public class HUD {
         g.setColor(new Color(180, 180, 180, 140));
         g.drawString("W/↑: Fwd   S/↓: Back   A/←: Rotate L   D/→: Rotate R   Q/E: Strafe   SPACE: Attack   F: Stairs",
                 10, sh - 5);
+    }
+
+    private static Color withAlpha(Color base, int alpha) {
+        return new Color(base.getRed(), base.getGreen(), base.getBlue(), alpha);
     }
 }

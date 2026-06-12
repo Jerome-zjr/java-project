@@ -42,6 +42,7 @@ public class MapGenerator {
     public record GenerationResult(
             DungeonMap   map,
             int[]        playerStart,
+            int[]        stairsPos,
             List<int[]>  enemySpawns,
             List<int[]>  itemSpawns) {}
 
@@ -56,7 +57,15 @@ public class MapGenerator {
             int ry = 1 + rng.nextInt(MAP_H - rh - 2);
             Room room = new Room(rx, ry, rw, rh);
 
-            if (rooms.stream().anyMatch(room::overlaps)) continue;
+            // Performance: use traditional loop instead of stream for early exit
+            boolean overlaps = false;
+            for (Room r : rooms) {
+                if (room.overlaps(r)) {
+                    overlaps = true;
+                    break;
+                }
+            }
+            if (overlaps) continue;
 
             carveRoom(map, room);
             if (!rooms.isEmpty()) {
@@ -81,6 +90,7 @@ public class MapGenerator {
         map.setTile(endRoom.cx(), endRoom.cy(), Tile.STAIRS_DOWN);
 
         int[] playerStart = { startRoom.cx(), startRoom.cy() };
+        int[] stairsPos   = { endRoom.cx(),   endRoom.cy()   };
 
         // Enemy spawns – one per middle room (70 % chance)
         List<int[]> enemySpawns = new ArrayList<>();
@@ -95,13 +105,16 @@ public class MapGenerator {
         List<int[]> itemSpawns = new ArrayList<>();
         for (Room r : rooms) {
             if (rng.nextFloat() < ITEM_SPAWN_PROBABILITY) {
-                int ix = r.x + 1 + rng.nextInt(Math.max(1, r.w - 2));
-                int iy = r.y + 1 + rng.nextInt(Math.max(1, r.h - 2));
-                itemSpawns.add(new int[]{ ix, iy });
+                // Ensure room is large enough to spawn items safely (minimum 3x3)
+                if (r.w >= 3 && r.h >= 3) {
+                    int ix = r.x + 1 + rng.nextInt(r.w - 2);
+                    int iy = r.y + 1 + rng.nextInt(r.h - 2);
+                    itemSpawns.add(new int[]{ ix, iy });
+                }
             }
         }
 
-        return new GenerationResult(map, playerStart, enemySpawns, itemSpawns);
+        return new GenerationResult(map, playerStart, stairsPos, enemySpawns, itemSpawns);
     }
 
     // ---------------------------------------------------------------
@@ -115,18 +128,21 @@ public class MapGenerator {
         }
     }
 
-    /** L-shaped corridor: horizontal first, then vertical. */
+    /** L-shaped corridor, 3 tiles wide: horizontal first, then vertical. */
     private void carveCorridor(DungeonMap map, int x1, int y1, int x2, int y2) {
         int x = x1;
         while (x != x2) {
-            map.setTile(x, y1, Tile.FLOOR);
+            for (int dy = -1; dy <= 1; dy++) map.setTile(x, y1 + dy, Tile.FLOOR);
             x += (x2 > x) ? 1 : -1;
         }
         int y = y1;
         while (y != y2) {
-            map.setTile(x2, y, Tile.FLOOR);
+            for (int dx = -1; dx <= 1; dx++) map.setTile(x2 + dx, y, Tile.FLOOR);
             y += (y2 > y) ? 1 : -1;
         }
-        map.setTile(x2, y2, Tile.FLOOR);
+        // Endpoint block (covers the corner junction too)
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) map.setTile(x2 + dx, y2 + dy, Tile.FLOOR);
+        }
     }
 }

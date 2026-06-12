@@ -10,9 +10,13 @@ import com.roguelike3d.item.ItemType;
 import com.roguelike3d.map.DungeonMap;
 import com.roguelike3d.map.MapGenerator;
 import com.roguelike3d.map.Tile;
+import com.roguelike3d.renderer.ParticleSystem;
 import com.roguelike3d.renderer.RaycastRenderer;
+import com.roguelike3d.theme.FloorTheme;
+import com.roguelike3d.theme.FloorThemes;
 import com.roguelike3d.ui.HUD;
 import com.roguelike3d.ui.Menu;
+import com.roguelike3d.util.MathUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -56,17 +60,17 @@ public class Game extends JPanel implements Runnable {
     private List<Enemy>  enemies;
     private List<Item>   items;
     private List<String> messages;
+    private FloorTheme   theme;
+    private final ParticleSystem particles;
 
     // cooldown for player swing (seconds)
     private double attackCooldown;
     private boolean attackQueued;
-    private static final double ATTACK_CD           = 0.45;
-    /** How close the player must be to the tile centre to trigger a wall slide. */
-    private static final double COLLISION_MARGIN    = 0.28;
-    /** Distance (in tiles) within which an item is auto-collected. */
-    private static final double ITEM_PICKUP_RANGE   = 0.80;
-    /** Enemy type tier advances every N floors. */
-    private static final int    FLOORS_PER_ENEMY_TIER = 3;
+
+    // stairs position on the current floor (world tile coordinates)
+    private int    stairsX;
+    private int    stairsY;
+    private double stairsCooldown;
 
     // ── Swing ──────────────────────────────────────────────────────────────
     private JFrame frame;
@@ -87,6 +91,7 @@ public class Game extends JPanel implements Runnable {
         rng      = new Random();
         messages = new ArrayList<>();
         state    = GameState.MENU;
+        particles = new ParticleSystem(SW, SH);
 
         addKeyListener(input);
     }
@@ -147,6 +152,7 @@ public class Game extends JPanel implements Runnable {
                 case MENU     -> updateMenu();
                 case PLAYING  -> updatePlaying(dt);
                 case GAME_OVER -> updateGameOver();
+                case VICTORY  -> updateVictory(dt);
             }
         }
     }
@@ -163,46 +169,60 @@ public class Game extends JPanel implements Runnable {
     private void updatePlaying(double dt) {
         if (!player.isAlive()) { state = GameState.GAME_OVER; return; }
 
+        if (stairsCooldown > 0) stairsCooldown = Math.max(0, stairsCooldown - dt);
+        particles.update(dt);
         handleMovement(dt);
         handleAttack(dt);
         checkItemPickup();
         checkStairs();
+        if (state != GameState.PLAYING) return;
         updateEnemies(dt);
         trimMessages();
+    }
+
+    private void updateVictory(double dt) {
+        particles.update(dt);
+        if (input.wasJustPressed(KeyEvent.VK_ENTER)) state = GameState.MENU;
+        if (input.wasJustPressed(KeyEvent.VK_ESCAPE)) System.exit(0);
     }
 
     // ── movement ────────────────────────────────────────────────────────────
 
     private void handleMovement(double dt) {
-        final double MOVE_SPEED = 3.5;
-        final double ROT_SPEED  = 2.2;
-        final double MARGIN     = COLLISION_MARGIN;
+        final double MARGIN     = GameConstants.COLLISION_MARGIN;
 
         double angle = player.getAngle();
         double nx    = player.getX();
         double ny    = player.getY();
 
+        // Pre-compute trigonometric values to avoid repeated calls
+        double cosAngle = Math.cos(angle);
+        double sinAngle = Math.sin(angle);
+        // cos(angle ± π/2) = ∓sin(angle), sin(angle ± π/2) = ±cos(angle)
+        double cosLeftAngle = sinAngle;   // cos(angle - π/2) = sin(angle)
+        double sinLeftAngle = -cosAngle;  // sin(angle - π/2) = -cos(angle)
+
         if (input.isHeld(KeyEvent.VK_W) || input.isHeld(KeyEvent.VK_UP)) {
-            nx += Math.cos(angle) * MOVE_SPEED * dt;
-            ny += Math.sin(angle) * MOVE_SPEED * dt;
+            nx += cosAngle * GameConstants.MOVE_SPEED * dt;
+            ny += sinAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_S) || input.isHeld(KeyEvent.VK_DOWN)) {
-            nx -= Math.cos(angle) * MOVE_SPEED * dt;
-            ny -= Math.sin(angle) * MOVE_SPEED * dt;
+            nx -= cosAngle * GameConstants.MOVE_SPEED * dt;
+            ny -= sinAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_Q)) {   // strafe left
-            nx += Math.cos(angle - Math.PI / 2) * MOVE_SPEED * dt;
-            ny += Math.sin(angle - Math.PI / 2) * MOVE_SPEED * dt;
+            nx += cosLeftAngle * GameConstants.MOVE_SPEED * dt;
+            ny += sinLeftAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_E)) {   // strafe right
-            nx += Math.cos(angle + Math.PI / 2) * MOVE_SPEED * dt;
-            ny += Math.sin(angle + Math.PI / 2) * MOVE_SPEED * dt;
+            nx -= cosLeftAngle * GameConstants.MOVE_SPEED * dt;
+            ny -= sinLeftAngle * GameConstants.MOVE_SPEED * dt;
         }
         if (input.isHeld(KeyEvent.VK_A) || input.isHeld(KeyEvent.VK_LEFT)) {
-            player.setAngle(angle - ROT_SPEED * dt);
+            player.setAngle(angle - GameConstants.ROT_SPEED * dt);
         }
         if (input.isHeld(KeyEvent.VK_D) || input.isHeld(KeyEvent.VK_RIGHT)) {
-            player.setAngle(angle + ROT_SPEED * dt);
+            player.setAngle(angle + GameConstants.ROT_SPEED * dt);
         }
 
         // Slide along walls: test each axis independently
@@ -235,12 +255,13 @@ public class Game extends JPanel implements Runnable {
         if (!attackQueued) return;
 
         attackQueued = false;
-        attackCooldown = ATTACK_CD;
+        attackCooldown = GameConstants.ATTACK_COOLDOWN;
         boolean hit = false;
         for (Enemy e : enemies) {
             if (!e.isAlive()) continue;
-            double dist = dist(e.getX(), e.getY(), player.getX(), player.getY());
-            if (dist < 1.6) {
+            // Performance: use squared distance to avoid sqrt; 1.6² = 2.56
+            if (MathUtils.distSquared(e.getX(), e.getY(), player.getX(), player.getY()) 
+                    < GameConstants.ATTACK_RANGE_SQ) {
                 int dmg = CombatSystem.attack(player, e);
                 addMsg("You hit " + e.getType().name + " for " + dmg + " dmg!");
                 hit = true;
@@ -258,7 +279,9 @@ public class Game extends JPanel implements Runnable {
     private void checkItemPickup() {
         for (Item it : items) {
             if (it.isPicked()) continue;
-            if (dist(it.getX(), it.getY(), player.getX(), player.getY()) < ITEM_PICKUP_RANGE) {
+            // Performance: use squared distance to avoid sqrt overhead
+            if (MathUtils.distSquared(it.getX(), it.getY(), player.getX(), player.getY()) 
+                    < GameConstants.ITEM_PICKUP_RANGE_SQ) {
                 it.collect(player);
                 addMsg("Picked up " + it.getType().name + "!");
             }
@@ -269,12 +292,22 @@ public class Game extends JPanel implements Runnable {
     // ── stairs ──────────────────────────────────────────────────────────────
 
     private void checkStairs() {
-        if (map.getTile((int) player.getX(), (int) player.getY()) == Tile.STAIRS_DOWN) {
-            if (input.wasJustPressed(KeyEvent.VK_F)) {
-                player.nextFloor();
-                loadFloor();
-                addMsg("Floor " + player.getFloor() + " – deeper into the dark…");
+        if (stairsCooldown > 0) return;
+        // Performance: use squared distance to avoid sqrt overhead
+        if (MathUtils.distSquared(player.getX(), player.getY(), stairsX + 0.5, stairsY + 0.5) 
+                < GameConstants.STAIRS_TRIGGER_RANGE_SQ
+                && input.wasJustPressed(KeyEvent.VK_F)) {
+            stairsCooldown = GameConstants.STAIRS_COOLDOWN;
+            int nextFloor = player.getFloor() + 1;
+            player.nextFloor();
+            if (nextFloor >= GameConstants.MAX_FLOOR) {
+                theme = FloorThemes.forFloor(player.getFloor());
+                particles.setTheme(theme);
+                state = GameState.VICTORY;
+                return;
             }
+            loadFloor();
+            addMsg("Floor " + player.getFloor() + " – deeper into the dark…");
         }
     }
 
@@ -284,8 +317,10 @@ public class Game extends JPanel implements Runnable {
         for (Enemy e : enemies) {
             int dmg = e.update(dt, player, map);
             if (dmg > 0 && player.isAlive()) {
+                int hpBefore = player.getHp();
                 player.takeDamage(dmg);
-                addMsg(e.getType().name + " attacks you for " + dmg + " dmg!");
+                int actual = hpBefore - player.getHp();
+                addMsg(e.getType().name + " attacks you for " + actual + " dmg!");
             }
         }
     }
@@ -310,9 +345,11 @@ public class Game extends JPanel implements Runnable {
         items = new ArrayList<>();
         messages.clear();
         attackQueued = false;
+        attackCooldown = 0;
+        stairsCooldown = 0;
         loadFloor();
         state = GameState.PLAYING;
-        addMsg("Welcome to the dungeon! Find the golden stairs ▼");
+        addMsg("Welcome to the dungeon! Reach floor " + GameConstants.MAX_FLOOR + " to escape.");
     }
 
     private void loadFloor() {
@@ -322,11 +359,17 @@ public class Game extends JPanel implements Runnable {
         player.setX(result.playerStart()[0] + 0.5);
         player.setY(result.playerStart()[1] + 0.5);
 
+        stairsX = result.stairsPos()[0];
+        stairsY = result.stairsPos()[1];
+
+        theme = FloorThemes.forFloor(player.getFloor());
+        particles.setTheme(theme);
+
         enemies.clear();
         EnemyType[] types = EnemyType.values();
         for (int[] sp : result.enemySpawns()) {
             // Scale enemy type probabilities by floor
-            EnemyType type = types[Math.min(rng.nextInt(types.length) + (player.getFloor() - 1) / FLOORS_PER_ENEMY_TIER,
+            EnemyType type = types[Math.min(rng.nextInt(types.length) + (player.getFloor() - 1) / GameConstants.FLOORS_PER_ENEMY_TIER,
                                             types.length - 1)];
             enemies.add(new Enemy(sp[0] + 0.5, sp[1] + 0.5, type));
         }
@@ -353,13 +396,15 @@ public class Game extends JPanel implements Runnable {
                 case MENU     -> menu.render(g2);
                 case PLAYING  -> renderPlaying(g2);
                 case GAME_OVER -> renderGameOver(g2);
+                case VICTORY  -> renderVictory(g2);
             }
         }
     }
 
     private void renderPlaying(Graphics2D g) {
-        renderer.render(g, map, player, enemies, items);
-        hud.render(g, player, messages, map);
+        renderer.render(g, map, player, enemies, items, new int[] { stairsX, stairsY }, theme);
+        particles.render(g);
+        hud.render(g, player, messages, map, stairsX, stairsY, theme);
     }
 
     private void renderGameOver(Graphics2D g) {
@@ -389,6 +434,37 @@ public class Game extends JPanel implements Runnable {
         String hint = "Press  ENTER  to return to menu";
         g.setColor(new Color(180, 180, 180));
         g.drawString(hint, (SW - fm.stringWidth(hint)) / 2, SH / 2 + 80);
+    }
+
+    private void renderVictory(Graphics2D g) {
+        FloorTheme activeTheme = theme != null ? theme : FloorThemes.forFloor(GameConstants.MAX_FLOOR);
+        GradientPaint bg = new GradientPaint(0, 0, activeTheme.ceiling(),
+                                             0, SH, activeTheme.floor());
+        g.setPaint(bg);
+        g.fillRect(0, 0, SW, SH);
+
+        particles.render(g);
+
+        g.setColor(new Color(0, 0, 0, 180));
+        g.fillRect(0, 0, SW, SH);
+
+        g.setFont(new Font("Arial", Font.BOLD, 64));
+        String title = "VICTORY";
+        FontMetrics fm = g.getFontMetrics();
+        g.setColor(activeTheme.stairs());
+        g.drawString(title, (SW - fm.stringWidth(title)) / 2, SH / 2 - 30);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 24));
+        fm = g.getFontMetrics();
+        String stats = "Cleared Floor " + player.getFloor() + " • Score " + player.getScore();
+        g.setColor(new Color(230, 230, 230));
+        g.drawString(stats, (SW - fm.stringWidth(stats)) / 2, SH / 2 + 20);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 18));
+        fm = g.getFontMetrics();
+        String hint = "Press  ENTER  to return to menu";
+        g.setColor(new Color(180, 180, 180));
+        g.drawString(hint, (SW - fm.stringWidth(hint)) / 2, SH / 2 + 70);
     }
 
     // =======================================================================
