@@ -2,6 +2,11 @@
 
 A pure-Java, first-person 3D roguelike dungeon crawler built with **Java 17** and **Swing/AWT** — no external dependencies.
 
+## 项目介绍
+
+这是一个基于 Java 17 + Swing/AWT 开发的第一人称 3D 地牢 Roguelike 游戏。项目通过经典 Raycasting（DDA）实现 3D 视角渲染，结合随机地图生成、回合式近战与楼层推进机制，构建出轻量但完整的地牢探索体验。  
+目前包含主菜单、设置页面（鼠标灵敏度可调并持久化）、战斗与掉落系统、HUD 与小地图、以及 Game Over 流程。
+
 ## Screenshots
 
 | Menu | In-Game (3D view) |
@@ -25,6 +30,10 @@ A pure-Java, first-person 3D roguelike dungeon crawler built with **Java 17** an
 
 | Key | Action |
 |-----|--------|
+| `SPACE` / Mouse Click (Menu) | Start game |
+| `S` (Menu) | Open settings |
+| `←` / `A` (Settings) | Decrease mouse sensitivity |
+| `→` / `D` (Settings) | Increase mouse sensitivity |
 | `W` / `↑` | Move forward |
 | `S` / `↓` | Move backward |
 | `A` / `←` | Rotate left |
@@ -33,8 +42,8 @@ A pure-Java, first-person 3D roguelike dungeon crawler built with **Java 17** an
 | `E` | Strafe right |
 | `SPACE` | Attack (melee swing) |
 | `F` | Descend stairs (when standing on `▼`) |
-| `ENTER` | Start game / confirm |
-| `ESC` | Quit |
+| `ESC` | Back to menu / quit (depends on current screen) |
+| `ENTER` | Return to menu on Game Over |
 
 ## Building & Running
 
